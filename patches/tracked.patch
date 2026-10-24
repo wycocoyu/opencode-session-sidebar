@@ -1,0 +1,321 @@
+diff --git a/packages/app/e2e/regression/tabs.spec.ts b/packages/app/e2e/regression/tabs.spec.ts
+index 9d1c75a..5ff2eb0 100644
+--- a/packages/app/e2e/regression/tabs.spec.ts
++++ b/packages/app/e2e/regression/tabs.spec.ts
+@@ -24,6 +24,101 @@ const c = { id: "ses_tab_c", title: "Tab C session" }
+ 
+ test.use({ serviceWorkers: "block" })
+ 
++test("session sidebar groups history and restores the original tab layout", async ({ page }) => {
++  const permission = {
++    id: "permission-sidebar",
++    sessionID: b.id,
++    action: "shell",
++    resources: ["git status"],
++    metadata: {},
++    save: [],
++  }
++  const requests = [permission]
++  const workspace = await openSession(page, {
++    name: "Sidebar",
++    sessions: [a, b, c],
++    sessionID: a.id,
++    sessionStatus: { [b.id]: { type: "busy" } },
++    permissions: () => requests,
++    sessionPermissions: { [b.id]: requests },
++    seed: {
++      tabs: [a.id],
++      settings: { appearance: { tabLayout: "vertical" } },
++      storage: { "opencode.global.dat:session-sidebar.v1": { enabled: true } },
++    },
++  })
++
++  const sidebar = page.getByRole("complementary", { name: "Sessions", exact: true })
++  await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
++  await expect(sidebar.getByRole("button", { name: /Tab B session/ })).toBeVisible()
++  const newer = { ...permission, id: "permission-sidebar-newer" }
++  requests.push(newer)
++  await workspace.push([{
++    id: "evt_sidebar_permission_asked",
++    type: "permission.asked",
++    created: Date.now(),
++    location: { directory: workspace.directory },
++    data: newer,
++  }])
++  requests.splice(requests.indexOf(newer), 1)
++  const refreshedRequests = page.waitForResponse(
++    (response) =>
++      response.request().method() === "GET" && new URL(response.url()).pathname === `/api/session/${b.id}/permission`,
++  )
++  await workspace.push([{
++    id: "evt_sidebar_newer_replied",
++    type: "permission.replied",
++    created: Date.now(),
++    location: { directory: workspace.directory },
++    data: { sessionID: b.id, requestID: newer.id, reply: "once" },
++  }])
++  await refreshedRequests
++  await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
++  requests.splice(0)
++  await workspace.push([{
++    id: "evt_sidebar_permission_replied",
++    type: "permission.replied",
++    created: Date.now(),
++    location: { directory: workspace.directory },
++    data: { sessionID: b.id, requestID: permission.id, reply: "once" },
++  }])
++  await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toHaveCount(0)
++  await expect(sidebar.getByRole("heading", { name: "Working", exact: true })).toBeVisible()
++
++  const archived = workspace.sessions.find((item) => item.id === c.id)!
++  archived.time = { ...(archived.time as Record<string, number>), archived: Date.now() }
++  await workspace.push([{
++    id: "evt_sidebar_archived",
++    type: "session.archived",
++    created: Date.now(),
++    location: { directory: workspace.directory },
++    data: { sessionID: c.id },
++  }])
++  await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toHaveCount(0)
++  await sidebar.getByRole("combobox", { name: "Session visibility", exact: true }).selectOption("archived")
++  await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toBeVisible()
++  await sidebar.getByRole("combobox", { name: "Session visibility", exact: true }).selectOption("active")
++  await sidebar.getByRole("combobox", { name: "Group sessions by", exact: true }).selectOption("project")
++  await expect(sidebar.getByRole("heading", { name: "Sidebar", exact: true })).toBeVisible()
++  await sidebar.getByRole("searchbox", { name: "Search sessions", exact: true }).fill(b.title)
++  await expect(sidebar.getByRole("button", { name: /Tab A session/ })).toHaveCount(0)
++  await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toHaveCount(0)
++  await sidebar.getByRole("button", { name: /Tab B session/ }).click()
++  await expectPath(page, sessionHref(b.id))
++  await expectSessionTitle(page, b.title)
++
++  await sidebar.getByRole("button", { name: "Restore tabs", exact: true }).click()
++  await expect(sidebar).toBeHidden()
++  await expect(page.locator('[data-slot="vertical-tabs-sidebar"]')).toBeVisible()
++  const modifier = await page.evaluate(() => (/Mac/.test(navigator.platform) ? "Meta" : "Control"))
++  await page.keyboard.press(`${modifier}+Shift+b`)
++  await expect(sidebar).toBeVisible()
++  await expect(sidebar.getByRole("searchbox", { name: "Search sessions", exact: true })).toHaveValue(b.title)
++  await page.reload()
++  await expect(sidebar.getByRole("searchbox", { name: "Search sessions", exact: true })).toHaveValue(b.title)
++  await expect(sidebar.getByRole("combobox", { name: "Group sessions by", exact: true })).toHaveValue("project")
++})
++
+ test("tab strip keeps draft tabs as wide as session tabs and navigates on mouse down", async ({ page }) => {
+   const workspace = await mockWorkspace(page, {
+     name: "Tabs",
+diff --git a/packages/app/e2e/utils/app.ts b/packages/app/e2e/utils/app.ts
+index 2916bdf..b0f8ab8 100644
+--- a/packages/app/e2e/utils/app.ts
++++ b/packages/app/e2e/utils/app.ts
+@@ -103,6 +103,7 @@ function storageEntries(input: SeedInput): [string, string, boolean][] {
+   }
+ 
+   const values: Record<string, unknown> = {
++    "opencode.global.dat:session-sidebar.v1": { enabled: false },
+     ...(Object.keys(server).length ? { "opencode.global.dat:server": server } : {}),
+     ...(input.tabs ? { "opencode.window.browser.dat:tabs": input.tabs.map(tabEntry) } : {}),
+     ...(input.panes
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 6ee0b5a..60663d3 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -2,6 +2,38 @@ import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
+ 
+ export const dict = {
+   ...DESKTOP_NATIVE_ENGLISH,
++  "sessionSidebar.title": "Sessions",
++  "sessionSidebar.toggle": "Toggle session sidebar",
++  "sessionSidebar.restore": "Restore tabs",
++  "sessionSidebar.search": "Search sessions",
++  "sessionSidebar.groupBy": "Group sessions by",
++  "sessionSidebar.group.state": "By status",
++  "sessionSidebar.group.project": "By project",
++  "sessionSidebar.status": "Session visibility",
++  "sessionSidebar.active": "Active",
++  "sessionSidebar.archived": "Archived",
++  "sessionSidebar.project": "Filter by project",
++  "sessionSidebar.allProjects": "All projects",
++  "sessionSidebar.period": "Filter by time",
++  "sessionSidebar.allTime": "All time",
++  "sessionSidebar.day": "Last 24 hours",
++  "sessionSidebar.week": "Last 7 days",
++  "sessionSidebar.month": "Last 30 days",
++  "sessionSidebar.sort": "Sort sessions by",
++  "sessionSidebar.updated": "Last updated",
++  "sessionSidebar.created": "Created",
++  "sessionSidebar.noServers": "No servers available",
++  "sessionSidebar.disconnected": "Waiting for server connection…",
++  "sessionSidebar.loading": "Loading sessions…",
++  "sessionSidebar.failed": "Some session data could not be loaded.",
++  "sessionSidebar.retry": "Retry",
++  "sessionSidebar.empty": "No matching sessions",
++  "sessionSidebar.more": "Load older sessions",
++  "sessionSidebar.untitled": "Untitled session",
++  "sessionSidebar.state.input": "Needs input",
++  "sessionSidebar.state.working": "Working",
++  "sessionSidebar.state.review": "Ready to review",
++  "sessionSidebar.state.idle": "Idle",
+   "session.location.unavailable": "Session location unavailable",
+   "session.location.description": "Choose another directory to continue this session.",
+   "session.location.choose": "Choose directory",
+diff --git a/packages/app/src/settings/model.test.ts b/packages/app/src/settings/model.test.ts
+index b83db39..d7f27ab 100644
+--- a/packages/app/src/settings/model.test.ts
++++ b/packages/app/src/settings/model.test.ts
+@@ -101,7 +101,7 @@ describe("settings schema", () => {
+       appearance: {
+         fontSize: 14,
+         mono: "",
+-        sans: "",
++        sans: "Noto Serif SC",
+         terminal: "",
+         tabLayout: "horizontal",
+       },
+@@ -146,7 +146,7 @@ describe("settings schema", () => {
+     expect(settings.appearance).toEqual({
+       fontSize: 14,
+       mono: "Custom Mono",
+-      sans: "",
++      sans: "Noto Serif SC",
+       terminal: "",
+       tabLayout: "vertical",
+     })
+@@ -186,16 +186,16 @@ describe("settings schema", () => {
+   })
+ })
+ 
+-test("font defaults are Inter and IBM Plex Mono", () => {
+-  expect(sansDefault).toBe("Inter")
++test("preserves the installed Noto Serif SC and IBM Plex Mono defaults", () => {
++  expect(sansDefault).toBe("Noto Serif SC")
+   expect(monoDefault).toBe("IBM Plex Mono")
+ })
+ 
+ test.each([
+-  { name: "sans", family: sansFontFamily, font: undefined, prefix: '"Inter", ' },
+-  { name: "sans", family: sansFontFamily, font: "", prefix: '"Inter", ' },
+-  { name: "sans", family: sansFontFamily, font: "   ", prefix: '"Inter", ' },
+-  { name: "sans", family: sansFontFamily, font: "Custom Sans", prefix: '"Custom Sans", "Inter", ' },
++  { name: "sans", family: sansFontFamily, font: undefined, prefix: '"Noto Serif SC", "Inter", ' },
++  { name: "sans", family: sansFontFamily, font: "", prefix: '"Noto Serif SC", "Inter", ' },
++  { name: "sans", family: sansFontFamily, font: "   ", prefix: '"Noto Serif SC", "Inter", ' },
++  { name: "sans", family: sansFontFamily, font: "Custom Sans", prefix: '"Custom Sans", "Noto Serif SC", "Inter", ' },
+   { name: "mono", family: monoFontFamily, font: undefined, prefix: '"IBM Plex Mono", ' },
+   { name: "mono", family: monoFontFamily, font: "", prefix: '"IBM Plex Mono", ' },
+   { name: "mono", family: monoFontFamily, font: "   ", prefix: '"IBM Plex Mono", ' },
+diff --git a/packages/app/src/settings/model.tsx b/packages/app/src/settings/model.tsx
+index 8efa301..50a45b9 100644
+--- a/packages/app/src/settings/model.tsx
++++ b/packages/app/src/settings/model.tsx
+@@ -30,14 +30,15 @@ export function projectSettingsKey(scope: ServerScope, projectID: string | undef
+ 
+ export const monoDefault = "IBM Plex Mono"
+ 
+-export const sansDefault = "Inter"
++export const sansDefault = "Noto Serif SC"
+ 
+ export const terminalDefault = "JetBrainsMono Nerd Font Mono"
+ 
+ const monoFallback =
+   '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+ 
+-const sansFallback = '"Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
++const sansFallback =
++  '"Noto Serif SC", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+ 
+ const terminalFallback =
+   '"JetBrainsMono Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+@@ -284,7 +285,7 @@ export const defaultSettings: Settings = {
+     terminalPlacement: "side",
+     followUpBehavior: "steer",
+   },
+-  appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal" },
++  appearance: { fontSize: 14, mono: "", sans: "Noto Serif SC", terminal: "", tabLayout: "horizontal" },
+   keybinds: {},
+   permissions: { autoApprove: false, autoApproveProjects: {} },
+   workspaces: { defaultDestination: "last-used", lastUsed: {} },
+diff --git a/packages/app/src/shell/shell.tsx b/packages/app/src/shell/shell.tsx
+index 25bc495..057d007 100644
+--- a/packages/app/src/shell/shell.tsx
++++ b/packages/app/src/shell/shell.tsx
+@@ -11,19 +11,40 @@ import { useSettingsSurface } from "@/settings/surface"
+ import { useSettings } from "@/settings/model"
+ import { ExtensionServerCover } from "@/runtime/extension/server-shell"
+ import { ExtensionSlot } from "@/runtime/extension/render"
++import { useCommand } from "@/shell/commands/command"
++import { useLanguage } from "@/runtime/i18n/language"
++import { createSidebarPreferences } from "@/shell/session-sidebar/preferences"
++import { SessionSidebar } from "@/shell/session-sidebar/sidebar"
+ 
+ export default function Layout(props: ParentProps) {
+   const platform = usePlatform()
+   const settings = useSettingsSurface()
+   const preferences = useSettings()
+   const mobile = createMediaQuery("(max-width: 767px)")
++  const command = useCommand()
++  const language = useLanguage()
++  const [sidebar, setSidebar, , sidebarReady] = createSidebarPreferences()
++  const showSidebar = () => sidebarReady() && sidebar.enabled && !mobile()
++
++  command.register("session-sidebar", () => [
++    {
++      id: "session-sidebar.toggle",
++      title: language.t("sessionSidebar.toggle"),
++      category: language.t("command.category.view"),
++      keybind: "mod+shift+b",
++      onSelect: async () => {
++        await sidebarReady.promise
++        setSidebar("enabled", (enabled) => !enabled)
++      },
++    },
++  ])
+ 
+   const [state, setState] = createStore<{ tabsWidth: number; tabsMount: HTMLElement | undefined }>({
+     tabsWidth: 260,
+     tabsMount: undefined,
+   })
+ 
+-  const verticalTabs = () => preferences.appearance.tabLayout() === "vertical" && !mobile()
++  const verticalTabs = () => preferences.appearance.tabLayout() === "vertical" && !mobile() && !showSidebar()
+   const bottomTitlebar = () => mobile() && preferences.general.mobileTitlebarPosition() === "bottom"
+ 
+   return (
+@@ -47,6 +68,9 @@ export default function Layout(props: ParentProps) {
+       >
+         <Titlebar verticalTabs={verticalTabs() ? { mount: state.tabsMount } : undefined} />
+         <div class="flex flex-1 min-h-0 min-w-0 flex-row">
++          <Show when={showSidebar()}>
++            <SessionSidebar filter={sidebar} setFilter={setSidebar} close={() => setSidebar("enabled", false)} />
++          </Show>
+           <Show when={verticalTabs()}>
+             <aside
+               ref={(element) => setState("tabsMount", element)}
+diff --git a/packages/ui/src/theme/context.tsx b/packages/ui/src/theme/context.tsx
+index 9a4cc5a..ce5616f 100644
+--- a/packages/ui/src/theme/context.tsx
++++ b/packages/ui/src/theme/context.tsx
+@@ -5,6 +5,7 @@ import { createStore } from "solid-js/store"
+ import { makeEventListener } from "@solid-primitives/event-listener"
+ import { createSimpleContext } from "../context/helper"
+ import oc2ThemeJson from "./themes/oc-2.json"
++import absolutelyThemeJson from "./themes/absolutely.json"
+ import { resolveThemeVariant, themeToCss } from "./resolve"
+ import { resolveThemeVariantV2, themeV2ToCss } from "./v2/resolve"
+ import type { DesktopTheme } from "./types"
+@@ -51,6 +52,7 @@ function knownThemes() {
+ 
+ const names: Record<string, string> = {
+   "oc-2": "OpenCode",
++  absolutely: "Absolutely",
+   amoled: "AMOLED",
+   aura: "Aura",
+   ayu: "Ayu",
+@@ -207,6 +209,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
+     const [store, setStore] = createStore({
+       themes: {
+         "oc-2": oc2Theme,
++        absolutely: absolutelyThemeJson as DesktopTheme,
+       } as Record<string, DesktopTheme>,
+       themeId,
+       colorScheme,
