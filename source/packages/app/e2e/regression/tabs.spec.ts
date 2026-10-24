@@ -49,51 +49,60 @@ test("session sidebar groups history and restores the original tab layout", asyn
   })
 
   const sidebar = page.getByRole("complementary", { name: "Sessions", exact: true })
+  await expect(page.locator("[data-titlebar-tab-slot]:visible")).toHaveCount(0)
   await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /Tab B session/ })).toBeVisible()
   const newer = { ...permission, id: "permission-sidebar-newer" }
   requests.push(newer)
-  await workspace.push([{
-    id: "evt_sidebar_permission_asked",
-    type: "permission.asked",
-    created: Date.now(),
-    location: { directory: workspace.directory },
-    data: newer,
-  }])
+  await workspace.push([
+    {
+      id: "evt_sidebar_permission_asked",
+      type: "permission.asked",
+      created: Date.now(),
+      location: { directory: workspace.directory },
+      data: newer,
+    },
+  ])
   requests.splice(requests.indexOf(newer), 1)
   const refreshedRequests = page.waitForResponse(
     (response) =>
       response.request().method() === "GET" && new URL(response.url()).pathname === `/api/session/${b.id}/permission`,
   )
-  await workspace.push([{
-    id: "evt_sidebar_newer_replied",
-    type: "permission.replied",
-    created: Date.now(),
-    location: { directory: workspace.directory },
-    data: { sessionID: b.id, requestID: newer.id, reply: "once" },
-  }])
+  await workspace.push([
+    {
+      id: "evt_sidebar_newer_replied",
+      type: "permission.replied",
+      created: Date.now(),
+      location: { directory: workspace.directory },
+      data: { sessionID: b.id, requestID: newer.id, reply: "once" },
+    },
+  ])
   await refreshedRequests
   await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
   requests.splice(0)
-  await workspace.push([{
-    id: "evt_sidebar_permission_replied",
-    type: "permission.replied",
-    created: Date.now(),
-    location: { directory: workspace.directory },
-    data: { sessionID: b.id, requestID: permission.id, reply: "once" },
-  }])
+  await workspace.push([
+    {
+      id: "evt_sidebar_permission_replied",
+      type: "permission.replied",
+      created: Date.now(),
+      location: { directory: workspace.directory },
+      data: { sessionID: b.id, requestID: permission.id, reply: "once" },
+    },
+  ])
   await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toHaveCount(0)
   await expect(sidebar.getByRole("heading", { name: "Working", exact: true })).toBeVisible()
 
   const archived = workspace.sessions.find((item) => item.id === c.id)!
   archived.time = { ...(archived.time as Record<string, number>), archived: Date.now() }
-  await workspace.push([{
-    id: "evt_sidebar_archived",
-    type: "session.archived",
-    created: Date.now(),
-    location: { directory: workspace.directory },
-    data: { sessionID: c.id },
-  }])
+  await workspace.push([
+    {
+      id: "evt_sidebar_archived",
+      type: "session.archived",
+      created: Date.now(),
+      location: { directory: workspace.directory },
+      data: { sessionID: c.id },
+    },
+  ])
   await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toHaveCount(0)
   await sidebar.getByRole("combobox", { name: "Session visibility", exact: true }).selectOption("archived")
   await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toBeVisible()

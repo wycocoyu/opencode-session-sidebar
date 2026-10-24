@@ -141,10 +141,11 @@ def restore():
     os.replace(temporary, target)
     shutil.copy2(backup / 'Info.plist', APP / 'Contents/Info.plist')
     shutil.copytree(backup / '_CodeSignature', APP / 'Contents/_CodeSignature', dirs_exist_ok=True)
+    subprocess.run(['codesign', '--force', '--sign', '-', str(APP)], check=True)
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(APP)], check=True)
     if digest(target) != manifest['asar_sha256']:
         raise SystemExit('Restored ASAR hash mismatch')
-    print('Restored the exact backed-up application resources, including the existing theme.')
+    print('Restored backed-up application resources and renewed the local ad-hoc signature.')
 
 
 if __name__ == '__main__':
