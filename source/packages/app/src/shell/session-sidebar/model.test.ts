@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test"
-import { buildSessionGroups, sidebarProjectKey, type SidebarFilter, type SidebarRow } from "./model"
+import {
+  buildPinnedRows,
+  buildSessionGroups,
+  formatRelativeTime,
+  normalizeSessionTitle,
+  sessionSubpathLabel,
+  sidebarProjectKey,
+  type SidebarFilter,
+  type SidebarRow,
+} from "./model"
 
 const DAY = 24 * 60 * 60 * 1000
 const NOW = Date.UTC(2026, 9, 24, 12)
@@ -128,5 +137,46 @@ describe("buildSessionGroups", () => {
     b.server = "a"
     b.project.id = "b\nc"
     expect(sidebarProjectKey(a)).not.toBe(sidebarProjectKey(b))
+  })
+
+  test("supports time and flat grouping modes and separates pinned sessions", () => {
+    const today = row("today", "idle", 0)
+    const week = row("week", "idle", 4)
+    const older = row("older", "idle", 45)
+    const timeGroups = buildSessionGroups([older, week, today], { ...filter, groupBy: "time" })
+    expect(timeGroups.map((group) => [group.id, group.time, group.rows.map((item) => item.session.id)])).toEqual([
+      ["today", "today", ["today"]],
+      ["week", "week", ["week"]],
+      ["older", "older", ["older"]],
+    ])
+
+    const flatGroups = buildSessionGroups([week, today], { ...filter, groupBy: "none" })
+    expect(flatGroups).toHaveLength(1)
+    expect(flatGroups[0].rows.map((item) => item.session.id)).toEqual(["today", "week"])
+
+    const pinnedFilter = { ...filter, pinned: [week.key] }
+    expect(buildPinnedRows([today, week, older], pinnedFilter).map((item) => item.session.id)).toEqual(["week"])
+    expect(ids([today, week, older], pinnedFilter)).toEqual(["today", "older"])
+  })
+})
+
+describe("protocol title and display helpers", () => {
+  test("normalizes JSON payload titles and strips fallback timestamps", () => {
+    expect(normalizeSessionTitle('{"text":"继续对话"}')).toBe("继续对话")
+    expect(normalizeSessionTitle('[{"type":"text","text":"Fix   sidebar\\nlayout"}]')).toBe("Fix sidebar layout")
+    expect(normalizeSessionTitle("New session - 2026-10-24T12:00:00.000Z")).toBe("")
+    expect(normalizeSessionTitle("Child session - 2026-10-24T12:00:00.000Z")).toBe("")
+    expect(normalizeSessionTitle("  Clean   title  ")).toBe("Clean title")
+  })
+
+  test("formats relative timestamps and worktree subpaths", () => {
+    expect(formatRelativeTime(NOW - 10_000, NOW)).toBe("now")
+    expect(formatRelativeTime(NOW - 9 * 60_000, NOW)).toBe("9m")
+    expect(formatRelativeTime(NOW - 5 * 3_600_000, NOW)).toBe("5h")
+    expect(formatRelativeTime(NOW - 3 * DAY, NOW)).toBe("3d")
+    expect(sessionSubpathLabel(row("a"))).toBe("worktree")
+    const rootRow = row("root")
+    rootRow.session.location.directory = "/projects/ark"
+    expect(sessionSubpathLabel(rootRow)).toBe("")
   })
 })

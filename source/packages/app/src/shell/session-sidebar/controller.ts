@@ -7,8 +7,9 @@ import { HOME_SESSION_LIMIT, loadHomeSessionIndex } from "@/home/sessions/index"
 import { useGlobal } from "@/runtime/server/runtime"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useTabs } from "@/shell/tabs/tabs"
+import { notifySessionTabsRemoved } from "@/shell/titlebar/session-events"
 import { projectSettingsKey, useSettings } from "@/settings/model"
-import { sessionFormRequest } from "@/session/requests/session-request-tree"
+import { sessionFormRequest, sessionTreeIDs } from "@/session/requests/session-request-tree"
 import { sidebarRefresh, sidebarRows } from "./adapter"
 import type { SidebarFilter, SidebarRow } from "./model"
 
@@ -220,7 +221,7 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
       if (filter().status === "active" && !state.history) return setState("history", true)
       void history.fetchNextPage()
     },
-    open: (row: SidebarRow) => {
+    open: (row: SidebarRow, options?: { background?: boolean }) => {
       const context = ctx()
       const session =
         context?.data.session.get(row.session.id) ?? sessions().find((session) => session.id === row.session.id)
@@ -228,10 +229,112 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
       void startTransition(() => {
         context.data.session.remember(session)
         context.projects.open(row.project.directory)
-        context.projects.touch(row.project.directory)
-        tabs.select(tabs.addSessionTab({ server: key, sessionId: session.id }))
-        context.notification.session.markViewed(session.id)
+        if (!options?.background) context.projects.touch(row.project.directory)
+        const tab = tabs.addSessionTab({ server: key, sessionId: session.id })
+        if (!options?.background) {
+          tabs.select(tab)
+          context.notification.session.markViewed(session.id)
+        }
       })
+    },
+    newSessionInProject: (directory: string) => {
+      const context = ctx()
+      if (!context) return
+      context.projects.open(directory)
+      context.projects.touch(directory)
+      void tabs.newDraft({ server: key, directory }, "")
+    },
+    interrupt: async (row: SidebarRow) => {
+      const context = ctx()
+      if (!context) return false
+      try {
+        await context.sdk.api.session.interrupt({ sessionID: row.session.id })
+        void queryClient.invalidateQueries({ queryKey: ["sidebar-activity", connection], exact: true })
+        return true
+      } catch {
+        return false
+      }
+    },
+    rename: async (row: SidebarRow, title: string) => {
+      const context = ctx()
+      const next = title.trim()
+      if (!context || !next) return false
+      const session =
+        context.data.session.get(row.session.id) ?? sessions().find((item) => item.id === row.session.id)
+      try {
+        await context.sdk.api.session.update({ sessionID: row.session.id, title: next })
+        if (session) context.data.session.remember({ ...session, title: next })
+        context.data.session.invalidate(row.session.id)
+        void context.data.session.sync(row.session.id).catch(() => undefined)
+        queryClient.setQueryData<() => SessionInfo[]>(["home-sessions", connection], (current) => {
+          const list = current?.()
+          if (!list) return current
+          const updated = list.map((item) => (item.id === row.session.id ? { ...item, title: next } : item))
+          return () => updated
+        })
+        void queryClient.invalidateQueries({ queryKey: ["sidebar-history", connection] })
+        return true
+      } catch {
+        return false
+      }
+    },
+    setArchived: async (row: SidebarRow, archived: boolean) => {
+      const context = ctx()
+      if (!context) return false
+      const session =
+        context.data.session.get(row.session.id) ?? sessions().find((item) => item.id === row.session.id)
+      try {
+        await context.sdk.api.session.update({ sessionID: row.session.id, archived })
+        if (session) {
+          const nextTime = { ...session.time }
+          if (archived) nextTime.archived = Date.now()
+          else delete nextTime.archived
+          context.data.session.remember({ ...session, time: nextTime })
+        }
+        if (archived) {
+          notifySessionTabsRemoved({
+            server: key,
+            directory: row.session.location.directory,
+            sessionIDs: [row.session.id],
+          })
+        }
+        void queryClient.invalidateQueries({ queryKey: ["home-sessions", connection], exact: true })
+        void queryClient.invalidateQueries({ queryKey: ["sidebar-history", connection] })
+        return true
+      } catch {
+        return false
+      }
+    },
+    remove: async (row: SidebarRow) => {
+      const context = ctx()
+      if (!context) return false
+      const ids = sessionTreeIDs(context.data.session.list(), row.session.id)
+      try {
+        await context.data.session.remove(row.session.id)
+        setState("deleted", (current) => [...current, row.session.id])
+        notifySessionTabsRemoved({
+          server: key,
+          directory: row.session.location.directory,
+          sessionIDs: ids,
+        })
+        void queryClient.invalidateQueries({ queryKey: ["home-sessions", connection], exact: true })
+        void queryClient.invalidateQueries({ queryKey: ["sidebar-history", connection] })
+        return true
+      } catch {
+        return false
+      }
+    },
+    markRead: (row: SidebarRow) => {
+      ctx()?.notification.session.markViewed(row.session.id)
+    },
+    markAllRead: () => {
+      const context = ctx()
+      if (!context) return
+      for (const row of rows()) {
+        if (row.state === "review") {
+          context.notification.session.markViewed(row.session.id)
+        }
+      }
     },
   }
 }

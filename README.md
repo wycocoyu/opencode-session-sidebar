@@ -6,16 +6,30 @@
 
 ## 功能
 
-- 按状态或项目分组。
-- 搜索、项目、时间、活跃／归档筛选。
-- 按创建时间或更新时间排序。
-- 加载更早的会话历史。
-- 复用官方会话导航和完整 permission/form 请求缓存，跟随跨客户端状态事件更新。
-- macOS 使用 `Cmd+Shift+B`，或命令面板 `Toggle session sidebar` 开关。
-- 点击 `Restore tabs` 恢复原横向／纵向标签栏。窄屏保留原界面。
-- 新侧栏开启时隐藏顶部会话标签，只保留左侧竖向列表，避免两套会话导航重复显示。新建会话等标题栏操作保留。
+- **紧凑高密度顶部导航（参考 Claude Desktop + ZCode + ATG）**：
+  - 顶部主动作栏整合 `+ New session`（带快捷键徽章 `⌘T`）与 `Restore tabs` 侧栏折叠切换按钮，移除旧版冗余的 5 个原生 `<select>` 下拉框堆积。
+  - 紧凑圆角搜索框（支持 `Esc` 与一键清空），下方提供 `Sessions` + 当前视图胶囊徽章与右侧级联筛选菜单（`Group sessions by` / `Sort sessions by` / `Filter by time` / `Filter by project` / `Display` / `Archived only` / `Mark all as read` / `Reset filters`）及 `+ Add project` 按钮。
+  - 存在激活筛选条件时自动展示可点击移除的筛选胶囊（Filter Pills），同时保留隐藏 `<select>` 以兼容无障碍与自动化测试。
+- **置顶会话区（`Pinned`）与多维分组（`By status` / `By project` / `By time` / `None`）**：
+  - 支持将常用会话置顶到顶部可折叠 `Pinned` 分区。
+  - 支持按状态（`Needs input`、`Working`、`Ready to review`、`Idle`）、按项目（带文件夹图标与悬停 `+` 快速在该项目新建会话）、按时间（`Today`、`Yesterday`、`Previous 7 days`、`Previous 30 days`、`Older`）或平铺列表切换。
+  - 所有分组支持点击折叠／展开并持久化折叠状态，折叠分组内若有待处理或未读会话自动显示提示圆点。
+- **底层协议 JSON 标题净化与紧凑行设计**：
+  - 自动解析并提取底层协议偶发写入的原始 JSON 会话标题（如 `{"text":"继续对话"}`、`{"prompt":"..."}` 或 Part 数组），并剥离 `New session - 2026-...` 兜底时间戳后缀。
+  - 每行左侧标题对齐，右侧展示实时状态指示（`Working` 旋转进度、`Needs input` 琥珀色圆点与标签、`Ready to review` 蓝色未读圆点）与紧凑相对时间（`now`、`9m`、`5h`、`2d`）。
+  - 副标题展示项目名与子目录／worktree 相对路径（在按项目分组视图下自动去重仅显示 worktree 子路径，并可在 `Display -> Show project path` 中开关）。
+- **悬停快捷操作与右键上下文菜单**：
+  - 悬停行显示 `More actions`（`...`）、`Pin / Unpin` 及运行中会话的 `Stop session` 快捷按钮，支持右键任意会话行直接唤起上下文菜单。
+  - 支持行内重命名（`Rename`）、新标签页后台打开（`Open in new tab`）、停止运行（`Stop session`）、标记已读（`Mark as read`）、归档／取消归档（`Archive / Unarchive`）、删除会话（`Delete`）、复制 Session ID 与工作目录。
+- **可拖拽调整侧栏宽度**：
+  - 内置 `ResizeHandle` 支持在 `220px`–`480px` 范围内拖拽调整侧栏宽度并持久化。
+- **系统级集成**：
+  - 复用官方会话导航和完整 permission/form 请求缓存，跟随跨客户端状态事件更新。
+  - macOS 使用 `Cmd+Shift+B`，或命令面板 `Toggle session sidebar` 开关。
+  - 点击 `Restore tabs` 恢复原横向／纵向标签栏。窄屏保留原界面。
+  - 新侧栏开启时隐藏顶部会话标签，只保留左侧竖向列表，避免两套会话导航重复显示。新建会话等标题栏操作保留。
 
-搜索与排序针对已加载数据。新侧栏文案采用英文源文案，其他语言使用运行时回退。
+搜索与排序针对已加载数据。内置英文（`en`）、简体中文（`zh`）与繁体中文（`zht`）完整国际化文案，其他语言使用运行时回退。
 
 ## 来源与授权
 

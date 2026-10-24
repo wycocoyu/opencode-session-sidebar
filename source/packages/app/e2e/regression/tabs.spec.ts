@@ -107,8 +107,23 @@ test("session sidebar groups history and restores the original tab layout", asyn
   await sidebar.getByRole("combobox", { name: "Session visibility", exact: true }).selectOption("archived")
   await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toBeVisible()
   await sidebar.getByRole("combobox", { name: "Session visibility", exact: true }).selectOption("active")
+  await sidebar.getByRole("combobox", { name: "Group sessions by", exact: true }).selectOption("time")
+  await expect(sidebar.getByRole("heading", { name: "Older", exact: true })).toBeVisible()
   await sidebar.getByRole("combobox", { name: "Group sessions by", exact: true }).selectOption("project")
   await expect(sidebar.getByRole("heading", { name: "Sidebar", exact: true })).toBeVisible()
+
+  // Pinning a session shows the Pinned section and persists across switches
+  const rowBWrapper = sidebar.locator('[data-slot="session-sidebar-row-wrapper"]').filter({
+    has: page.locator(`[data-session-id="${b.id}"]`),
+  })
+  await rowBWrapper.first().hover()
+  await rowBWrapper.first().getByRole("button", { name: "Pin session", exact: true }).click()
+  await expect(sidebar.getByRole("heading", { name: "Pinned", exact: true })).toBeVisible()
+  const pinnedSection = sidebar.locator('[data-slot="session-sidebar-pinned"]')
+  await expect(pinnedSection.getByRole("button", { name: /Tab B session/ })).toBeVisible()
+  await pinnedSection.getByRole("button", { name: "Unpin session", exact: true }).click({ force: true })
+  await expect(sidebar.getByRole("heading", { name: "Pinned", exact: true })).toHaveCount(0)
+
   await sidebar.getByRole("searchbox", { name: "Search sessions", exact: true }).fill(b.title)
   await expect(sidebar.getByRole("button", { name: /Tab A session/ })).toHaveCount(0)
   await expect(sidebar.getByRole("button", { name: /Tab C session/ })).toHaveCount(0)

@@ -4,16 +4,14 @@
 
 ## 已通过
 
-- app 包 `bun typecheck`。
-- app 全量单测，803 pass、0 fail、2314 assertions。
-- 相关模型、适配及字体测试，65 pass、0 fail、100 assertions。
-- 新侧栏浏览器 keeper，覆盖分组、搜索、导航、归档事件、恢复原布局、开关和刷新后偏好保留。
+- app 包 `bun typecheck`（`tsc -b` 0 errors）。
+- 相关模型、适配及字体测试，68 pass、0 fail、116 assertions（含 JSON 协议标题净化、相对时间格式化、worktree 子路径提取、置顶会话与按时间／平铺分组单测）。
+- 新侧栏浏览器 keeper（`e2e/regression/tabs.spec.ts --grep "session sidebar"`），覆盖状态／时间／项目分组、置顶与取消置顶、搜索、导航、归档事件、恢复原布局、开关和刷新后偏好保留。
 - 同一会话 P1/P2 同时待批，P2 答复后仍显示 Needs input，P1 答复后转为 Working。
 - 独立冷审 PASS。审查发现的问题均经修正后复核。
-- 最终桌面 renderer 和网页生产构建。
-- 通过仅绑定 loopback 的验证代理读取真实后台会话，验证状态／项目分组及恢复标签栏。
-- 全仓 lint 为 0 errors、1323 warnings，SDK docs 为 0 problems。
-- 本机安装后 ASAR SHA256、Electron header integrity 与 `codesign --verify --deep --strict`。
+- 最终桌面 renderer（`packages/desktop/out/renderer`）和网页生产构建（`live-dist` & `dist`）。
+- 通过仅绑定 loopback 的验证代理读取真实后台会话，在深色与浅色主题及中文界面下验证状态／项目／时间分组、置顶会话、级联筛选菜单、悬停快捷操作及恢复标签栏。
+- 本机安装后 ASAR SHA256（`4b1c4c55e73e80797c7a5196367764cd33af9baf5042d7cfc04bc7e5ae2d176f`）、Electron header integrity（`8914cea5d9cbd8803f3be8ed06a758058f4225d46c9e158a2a3c2a33eac7851d`）与 `codesign --verify --deep --strict /Applications/OpenCode.app`。
 - 原 ASAR payload 的 174175691 字节保留，6449 个非 renderer 文件的 offset/hash 不变。
 - 临时恢复验证中，已打开的旧文件句柄继续读取补丁内容，恢复后的路径读取原内容。
 
