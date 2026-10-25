@@ -6,6 +6,7 @@ import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Menu } from "@opencode/ui/menu"
 import { ResizeHandle } from "@opencode/ui/resize-handle"
+import { ScrollView } from "@opencode/ui/scroll-view"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection, serverName, useServers } from "@/runtime/server/registry"
@@ -414,7 +415,7 @@ export function SessionSidebar(props: {
                   <Menu.Sub>
                     <Menu.SubTrigger>{language.t("sessionSidebar.project")}</Menu.SubTrigger>
                     <Menu.Portal>
-                      <Menu.SubContent class="max-h-[280px] min-w-[180px] overflow-y-auto [font-family:var(--v2-font-family-sans)]">
+                      <Menu.SubContent class="max-h-[280px] min-w-[180px] overflow-y-auto no-scrollbar [font-family:var(--v2-font-family-sans)]">
                         <Menu.RadioGroup
                           value={props.filter.project}
                           onChange={(value) => props.setFilter("project", value)}
@@ -526,41 +527,46 @@ export function SessionSidebar(props: {
       </div>
 
       {/* Main Scrollable Session List */}
-      <div class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-0.5 pb-2">
-        <Show
-          when={servers.visible.length > 0}
-          fallback={
-            <p class="px-2.5 py-4 text-[12px] text-v2-text-text-muted">{language.t("sessionSidebar.noServers")}</p>
-          }
-        >
-          <For each={servers.visible}>
-            {(connection) => (
-              <ServerSessions
-                connection={connection}
-                filter={props.filter}
-                serverCount={servers.visible.length}
-                isGroupCollapsed={isGroupCollapsed}
-                toggleGroupCollapsed={toggleGroupCollapsed}
-                togglePinned={togglePinned}
-                onRows={(rows) => {
-                  const key = ServerConnection.key(connection)
-                  setRowsByServer((prev) => ({ ...prev, [key]: rows }))
-                }}
-                onRegisterMarkAllRead={(fn) => markAllReadMap.set(ServerConnection.key(connection), fn)}
-                onDispose={() => {
-                  const key = ServerConnection.key(connection)
-                  setRowsByServer((prev) => {
-                    const next = { ...prev }
-                    delete next[key]
-                    return next
-                  })
-                  markAllReadMap.delete(key)
-                }}
-              />
-            )}
-          </For>
-        </Show>
-      </div>
+      <ScrollView
+        data-slot="session-sidebar-scroll"
+        class="min-h-0 flex-1 [&_.scroll-view__thumb[data-orientation=vertical]]:w-2 [&_.scroll-view__thumb[data-orientation=vertical]::after]:w-[3px]"
+      >
+        <div class="flex flex-col gap-2.5 px-0.5 pb-2">
+          <Show
+            when={servers.visible.length > 0}
+            fallback={
+              <p class="px-2.5 py-4 text-[12px] text-v2-text-text-muted">{language.t("sessionSidebar.noServers")}</p>
+            }
+          >
+            <For each={servers.visible}>
+              {(connection) => (
+                <ServerSessions
+                  connection={connection}
+                  filter={props.filter}
+                  serverCount={servers.visible.length}
+                  isGroupCollapsed={isGroupCollapsed}
+                  toggleGroupCollapsed={toggleGroupCollapsed}
+                  togglePinned={togglePinned}
+                  onRows={(rows) => {
+                    const key = ServerConnection.key(connection)
+                    setRowsByServer((prev) => ({ ...prev, [key]: rows }))
+                  }}
+                  onRegisterMarkAllRead={(fn) => markAllReadMap.set(ServerConnection.key(connection), fn)}
+                  onDispose={() => {
+                    const key = ServerConnection.key(connection)
+                    setRowsByServer((prev) => {
+                      const next = { ...prev }
+                      delete next[key]
+                      return next
+                    })
+                    markAllReadMap.delete(key)
+                  }}
+                />
+              )}
+            </For>
+          </Show>
+        </div>
+      </ScrollView>
     </aside>
   )
 }
