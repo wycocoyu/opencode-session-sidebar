@@ -18,6 +18,7 @@ export function sidebarRefresh(type: string) {
       "session.unarchived",
       "session.renamed",
       "session.moved",
+      "session.viewed",
     ].includes(type),
     history: [
       "session.created",
@@ -26,6 +27,7 @@ export function sidebarRefresh(type: string) {
       "session.unarchived",
       "session.renamed",
       "session.moved",
+      "session.viewed",
     ].includes(type),
   }
 }

@@ -36,7 +36,7 @@ test("session sidebar groups history and restores the original tab layout", asyn
   const requests = [permission]
   const workspace = await openSession(page, {
     name: "Sidebar",
-    sessions: [a, b, c],
+    sessions: [a, b, { ...c, time: { created: 1, updated: 2, idle: 2 } }],
     sessionID: a.id,
     sessionStatus: { [b.id]: { type: "busy" } },
     permissions: () => requests,
@@ -51,7 +51,17 @@ test("session sidebar groups history and restores the original tab layout", asyn
   const sidebar = page.getByRole("complementary", { name: "Sessions", exact: true })
   await expect(page.locator("[data-titlebar-tab-slot]:visible")).toHaveCount(0)
   await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
+  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible()
   await expect(sidebar.getByRole("button", { name: /Tab B session/ })).toBeVisible()
+
+  const viewRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && new URL(request.url()).pathname === `/api/session/${c.id}/view`,
+  )
+  await sidebar.locator('[data-action="sidebar-filter-menu"]').click()
+  await page.getByRole("menuitem", { name: "Mark all as read", exact: true }).click()
+  await viewRequest
+  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toHaveCount(0)
   const newer = { ...permission, id: "permission-sidebar-newer" }
   requests.push(newer)
   await workspace.push([

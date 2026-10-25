@@ -1,8 +1,8 @@
 diff --git a/packages/app/e2e/regression/tabs.spec.ts b/packages/app/e2e/regression/tabs.spec.ts
-index 9d1c75a..70b483f 100644
+index 9d1c75a..1e78a04 100644
 --- a/packages/app/e2e/regression/tabs.spec.ts
 +++ b/packages/app/e2e/regression/tabs.spec.ts
-@@ -24,6 +24,125 @@ const c = { id: "ses_tab_c", title: "Tab C session" }
+@@ -24,6 +24,135 @@ const c = { id: "ses_tab_c", title: "Tab C session" }
  
  test.use({ serviceWorkers: "block" })
  
@@ -18,7 +18,7 @@ index 9d1c75a..70b483f 100644
 +  const requests = [permission]
 +  const workspace = await openSession(page, {
 +    name: "Sidebar",
-+    sessions: [a, b, c],
++    sessions: [a, b, { ...c, time: { created: 1, updated: 2, idle: 2 } }],
 +    sessionID: a.id,
 +    sessionStatus: { [b.id]: { type: "busy" } },
 +    permissions: () => requests,
@@ -33,7 +33,17 @@ index 9d1c75a..70b483f 100644
 +  const sidebar = page.getByRole("complementary", { name: "Sessions", exact: true })
 +  await expect(page.locator("[data-titlebar-tab-slot]:visible")).toHaveCount(0)
 +  await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
++  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible()
 +  await expect(sidebar.getByRole("button", { name: /Tab B session/ })).toBeVisible()
++
++  const viewRequest = page.waitForRequest(
++    (request) =>
++      request.method() === "POST" && new URL(request.url()).pathname === `/api/session/${c.id}/view`,
++  )
++  await sidebar.locator('[data-action="sidebar-filter-menu"]').click()
++  await page.getByRole("menuitem", { name: "Mark all as read", exact: true }).click()
++  await viewRequest
++  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toHaveCount(0)
 +  const newer = { ...permission, id: "permission-sidebar-newer" }
 +  requests.push(newer)
 +  await workspace.push([
@@ -140,6 +150,45 @@ index 2916bdf..b0f8ab8 100644
      ...(Object.keys(server).length ? { "opencode.global.dat:server": server } : {}),
      ...(input.tabs ? { "opencode.window.browser.dat:tabs": input.tabs.map(tabEntry) } : {}),
      ...(input.panes
+diff --git a/packages/app/e2e/utils/mock-api.ts b/packages/app/e2e/utils/mock-api.ts
+index 781d78f..898dc4a 100644
+--- a/packages/app/e2e/utils/mock-api.ts
++++ b/packages/app/e2e/utils/mock-api.ts
+@@ -424,6 +424,13 @@ const Group = HttpApiGroup.make("mock")
+       success: NoContent,
+     }),
+   )
++  .add(
++    HttpApiEndpoint.post("sessionView", "/api/session/:sessionID/view", {
++      params: SessionParams,
++      payload: JsonPayload,
++      success: NoContent,
++    }),
++  )
+   .add(
+     HttpApiEndpoint.post("sessionInterrupt", "/api/session/:sessionID/interrupt", {
+       params: SessionParams,
+diff --git a/packages/app/e2e/utils/mock-server.ts b/packages/app/e2e/utils/mock-server.ts
+index 4f557aa..1180a0e 100644
+--- a/packages/app/e2e/utils/mock-server.ts
++++ b/packages/app/e2e/utils/mock-server.ts
+@@ -1339,6 +1339,16 @@ function mockHandlers(
+ 
+             if (session && title !== undefined) session.title = title
+           }).pipe(Effect.andThen(noContent)),
++        sessionView: (ctx) =>
++          Effect.sync(() => {
++            const session = config.sessions.find((item) => item.id === ctx.params.sessionID)
++            const idle =
++              Predicate.isObject(ctx.payload) && typeof ctx.payload.idle === "number" ? ctx.payload.idle : undefined
++            if (session && idle !== undefined) {
++              const prevTime = Predicate.isObject(session.time) ? session.time : {}
++              session.time = { ...prevTime, viewed: idle }
++            }
++          }).pipe(Effect.andThen(noContent)),
+         sessionCommand: (ctx) => {
+           const recordCommand = config.onCommand
+ 
 diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
 index 6ee0b5a..71d9444 100644
 --- a/packages/app/src/runtime/i18n/en.ts
@@ -543,31 +592,3 @@ index f3780f5..b7ce060 100644
                          <RecentlyClosedTabsMenu
                            onNewTab={openNewTab}
                            tooltip={
-diff --git a/packages/ui/src/theme/context.tsx b/packages/ui/src/theme/context.tsx
-index 9a4cc5a..ce5616f 100644
---- a/packages/ui/src/theme/context.tsx
-+++ b/packages/ui/src/theme/context.tsx
-@@ -5,6 +5,7 @@ import { createStore } from "solid-js/store"
- import { makeEventListener } from "@solid-primitives/event-listener"
- import { createSimpleContext } from "../context/helper"
- import oc2ThemeJson from "./themes/oc-2.json"
-+import absolutelyThemeJson from "./themes/absolutely.json"
- import { resolveThemeVariant, themeToCss } from "./resolve"
- import { resolveThemeVariantV2, themeV2ToCss } from "./v2/resolve"
- import type { DesktopTheme } from "./types"
-@@ -51,6 +52,7 @@ function knownThemes() {
- 
- const names: Record<string, string> = {
-   "oc-2": "OpenCode",
-+  absolutely: "Absolutely",
-   amoled: "AMOLED",
-   aura: "Aura",
-   ayu: "Ayu",
-@@ -207,6 +209,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
-     const [store, setStore] = createStore({
-       themes: {
-         "oc-2": oc2Theme,
-+        absolutely: absolutelyThemeJson as DesktopTheme,
-       } as Record<string, DesktopTheme>,
-       themeId,
-       colorScheme,

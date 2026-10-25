@@ -28,6 +28,7 @@ describe("sidebar session adapter", () => {
     "session.unarchived",
     "session.renamed",
     "session.moved",
+    "session.viewed",
   ])("refreshes activity snapshots on %s", (type) => {
     expect(sidebarRefresh(type).activity).toBe(true)
   })
@@ -39,6 +40,7 @@ describe("sidebar session adapter", () => {
     "session.unarchived",
     "session.renamed",
     "session.moved",
+    "session.viewed",
   ])("refreshes unloaded historical records on %s", (type) => {
     expect(sidebarRefresh(type).history).toBe(true)
   })

@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import { createStore, type SetStoreFunction } from "solid-js/store"
+import type { SetStoreFunction } from "solid-js/store"
 import { useLocation } from "@solidjs/router"
 import { SessionProgressIndicatorV2 } from "@opencode/session-ui/v2/session-progress-indicator-v2"
 import { Icon } from "@opencode/ui/icon"
@@ -64,11 +64,11 @@ export function SessionSidebar(props: {
   const pickDirectory = useDirectoryPicker()
   let searchInputRef: HTMLInputElement | undefined
 
-  const [state, setState] = createStore<{ rows: Record<string, SidebarRow[]> }>({ rows: {} })
+  const [rowsByServer, setRowsByServer] = createSignal<Record<string, SidebarRow[]>>({})
   const markAllReadMap = new Map<string, () => void>()
 
   const projects = createMemo(() => {
-    const allRows = Object.values(state.rows).flat()
+    const allRows = Object.values(rowsByServer()).flat()
     const unique = [
       ...new Map(
         allRows.map((row) => [
@@ -542,11 +542,18 @@ export function SessionSidebar(props: {
                 isGroupCollapsed={isGroupCollapsed}
                 toggleGroupCollapsed={toggleGroupCollapsed}
                 togglePinned={togglePinned}
-                onRows={(rows) => setState("rows", ServerConnection.key(connection), rows)}
+                onRows={(rows) => {
+                  const key = ServerConnection.key(connection)
+                  setRowsByServer((prev) => ({ ...prev, [key]: rows }))
+                }}
                 onRegisterMarkAllRead={(fn) => markAllReadMap.set(ServerConnection.key(connection), fn)}
                 onDispose={() => {
                   const key = ServerConnection.key(connection)
-                  setState("rows", key, [])
+                  setRowsByServer((prev) => {
+                    const next = { ...prev }
+                    delete next[key]
+                    return next
+                  })
                   markAllReadMap.delete(key)
                 }}
               />

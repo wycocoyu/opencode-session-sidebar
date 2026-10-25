@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onCleanup, startTransition } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup, startTransition } from "solid-js"
 import { createStore } from "solid-js/store"
 import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/solid-query"
 import type { SessionInfo } from "@opencode/client/promise"
@@ -21,7 +21,11 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
   const key = ServerConnection.key(connection)
   const ctx = () => global.serverCtx(key)
   const connected = () => ctx()?.sdk.connection.status() === "connected"
-  const [state, setState] = createStore({ history: false, deleted: [] as string[] })
+  const [state, setState] = createStore({
+    history: false,
+    deleted: [] as string[],
+    viewed: {} as Record<string, number>,
+  })
   const index = useQuery(() => {
     const context = ctx()
     return {
@@ -199,7 +203,13 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
         working,
         review: new Set(
           [...sessions(), ...data.list()]
-            .filter((session) => context.notification.session.unread(session.id, session))
+            .filter((session) => {
+              if (session.parentID) return false
+              const acked = state.viewed[session.id]
+              const idle = data.get(session.id)?.time.idle ?? session.time.idle
+              if (acked !== undefined && idle !== undefined && idle <= acked) return false
+              return context.notification.session.unread(session.id, session)
+            })
             .map((session) => root(session.id)),
         ),
       },
@@ -233,6 +243,9 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
         const tab = tabs.addSessionTab({ server: key, sessionId: session.id })
         if (!options?.background) {
           tabs.select(tab)
+          if (session.time.idle !== undefined) {
+            setState("viewed", session.id, session.time.idle)
+          }
           context.notification.session.markViewed(session.id)
         }
       })
@@ -266,11 +279,9 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
         if (session) context.data.session.remember({ ...session, title: next })
         context.data.session.invalidate(row.session.id)
         void context.data.session.sync(row.session.id).catch(() => undefined)
-        queryClient.setQueryData<() => SessionInfo[]>(["home-sessions", connection], (current) => {
-          const list = current?.()
-          if (!list) return current
-          const updated = list.map((item) => (item.id === row.session.id ? { ...item, title: next } : item))
-          return () => updated
+        queryClient.setQueryData<SessionInfo[]>(["home-sessions", connection], (current) => {
+          if (!Array.isArray(current)) return current
+          return current.map((item) => (item.id === row.session.id ? { ...item, title: next } : item))
         })
         void queryClient.invalidateQueries({ queryKey: ["sidebar-history", connection] })
         return true
@@ -325,14 +336,62 @@ export function createServerSidebar(connection: ServerConnection.Any, filter: ()
       }
     },
     markRead: (row: SidebarRow) => {
-      ctx()?.notification.session.markViewed(row.session.id)
+      const context = ctx()
+      if (!context) return
+      const current =
+        context.data.session.get(row.session.id) ??
+        sessions().find((item) => item.id === row.session.id) ??
+        row.session
+      const idle = current.time.idle ?? row.session.time.idle
+      if (idle === undefined) return
+      setState("viewed", row.session.id, idle)
+      queryClient.setQueryData<SessionInfo[]>(["home-sessions", connection], (prev) => {
+        if (!Array.isArray(prev)) return prev
+        return prev.map((item) =>
+          item.id === row.session.id
+            ? { ...item, time: { ...item.time, viewed: Math.max(item.time.viewed ?? 0, idle) } }
+            : item,
+        )
+      })
+      if (context.data.session.get(row.session.id)?.time.idle !== undefined) {
+        context.notification.session.markViewed(row.session.id)
+      } else {
+        void context.sdk.api.session.view({ sessionID: row.session.id, idle }).catch(() => undefined)
+      }
     },
     markAllRead: () => {
       const context = ctx()
       if (!context) return
-      for (const row of rows()) {
-        if (row.state === "review") {
-          context.notification.session.markViewed(row.session.id)
+      const targets = rows().filter((row) => row.state === "review")
+      if (targets.length === 0) return
+      const acknowledgements = new Map<string, number>()
+      batch(() => {
+        for (const row of targets) {
+          const current =
+            context.data.session.get(row.session.id) ??
+            sessions().find((item) => item.id === row.session.id) ??
+            row.session
+          const idle = current.time.idle ?? row.session.time.idle
+          if (idle === undefined) continue
+          setState("viewed", row.session.id, idle)
+          acknowledgements.set(row.session.id, idle)
+        }
+      })
+      if (acknowledgements.size > 0) {
+        queryClient.setQueryData<SessionInfo[]>(["home-sessions", connection], (prev) => {
+          if (!Array.isArray(prev)) return prev
+          return prev.map((item) => {
+            const idle = acknowledgements.get(item.id)
+            if (idle === undefined) return item
+            return { ...item, time: { ...item.time, viewed: Math.max(item.time.viewed ?? 0, idle) } }
+          })
+        })
+      }
+      for (const [id, idle] of acknowledgements) {
+        if (context.data.session.get(id)?.time.idle !== undefined) {
+          context.notification.session.markViewed(id)
+        } else {
+          void context.sdk.api.session.view({ sessionID: id, idle }).catch(() => undefined)
         }
       }
     },
