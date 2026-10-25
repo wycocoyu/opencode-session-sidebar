@@ -526,8 +526,7 @@ export function SessionSidebar(props: {
       {/* Main Scrollable Session List */}
       <ScrollView
         data-slot="session-sidebar-scroll"
-        thumbVisibility="scroll"
-        class="min-h-0 flex-1 [&_.scroll-view__thumb[data-orientation=vertical]]:w-1.5 [&_.scroll-view__thumb[data-orientation=vertical]::after]:w-[2.5px]"
+        class="min-h-0 flex-1 -me-[var(--shell-inline-inset,8px)] [&>.scroll-view__thumb]:w-1.5!"
       >
         <div class="flex flex-col gap-2.5 ps-0.5 pe-2 pb-2">
           <Show
