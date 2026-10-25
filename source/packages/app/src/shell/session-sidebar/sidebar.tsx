@@ -340,9 +340,6 @@ export function SessionSidebar(props: {
                   class="relative flex size-6 items-center justify-center rounded-md text-v2-icon-icon-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base"
                 >
                   <Icon name="sliders" size="small" />
-                  <Show when={hasActiveFilters()}>
-                    <span class="absolute end-1 top-1 size-1.5 rounded-full bg-v2-background-bg-accent" />
-                  </Show>
                 </Menu.Trigger>
               </Tooltip>
               <Menu.Portal>
