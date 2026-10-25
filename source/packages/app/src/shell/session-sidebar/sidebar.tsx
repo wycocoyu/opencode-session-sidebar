@@ -184,7 +184,7 @@ export function SessionSidebar(props: {
     <aside
       aria-label={language.t("sessionSidebar.title")}
       data-slot="session-sidebar"
-      class="relative flex h-full min-h-0 shrink-0 flex-col border-e border-v2-border-border-base/60 bg-v2-background-bg-deep ps-2.5 pe-1.5 pt-[var(--shell-top-inset,8px)] pb-[var(--shell-bottom-inset,8px)] [font-family:var(--v2-font-family-sans)]"
+      class="relative flex h-full min-h-0 shrink-0 flex-col bg-v2-background-bg-deep ps-2.5 pe-0 pt-[var(--shell-top-inset,8px)] pb-[var(--shell-bottom-inset,8px)] [font-family:var(--v2-font-family-sans)]"
       style={{
         width: `${sidebarWidth()}px`,
       }}
@@ -256,7 +256,7 @@ export function SessionSidebar(props: {
       </div>
 
       {/* Top Primary Action Bar */}
-      <div class="flex flex-col gap-2 px-1 pb-2">
+      <div class="flex flex-col gap-2 ps-1 pe-2 pb-2">
         <div class="flex items-center gap-1">
           <button
             type="button"
@@ -529,9 +529,10 @@ export function SessionSidebar(props: {
       {/* Main Scrollable Session List */}
       <ScrollView
         data-slot="session-sidebar-scroll"
-        class="min-h-0 flex-1 [&_.scroll-view__thumb[data-orientation=vertical]]:w-2 [&_.scroll-view__thumb[data-orientation=vertical]::after]:w-[3px]"
+        thumbVisibility="scroll"
+        class="min-h-0 flex-1 [&_.scroll-view__thumb[data-orientation=vertical]]:w-1.5 [&_.scroll-view__thumb[data-orientation=vertical]::after]:w-[2.5px]"
       >
-        <div class="flex flex-col gap-2.5 px-0.5 pb-2">
+        <div class="flex flex-col gap-2.5 ps-0.5 pe-2 pb-2">
           <Show
             when={servers.visible.length > 0}
             fallback={
