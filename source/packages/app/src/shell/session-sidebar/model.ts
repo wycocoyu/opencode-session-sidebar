@@ -36,7 +36,7 @@ export type SidebarGroup = {
   rows: SidebarRow[]
 }
 
-const STATES: readonly SidebarRow["state"][] = ["input", "working", "review", "idle"]
+const STATES: readonly SidebarRow["state"][] = ["input", "working", "idle"]
 const TIME_BUCKETS: readonly SidebarTimeBucket[] = ["today", "yesterday", "week", "month", "older"]
 const DAY = 24 * 60 * 60 * 1000
 const FALLBACK_TITLE_PATTERN = /^(New session - |Child session - )\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
@@ -181,11 +181,11 @@ export function buildSessionGroups(rows: readonly SidebarRow[], filter: SidebarF
   const groups = new Map<string, SidebarGroup>()
   for (const row of visible) {
     if (filter.groupBy === "state") {
-      const id = row.state
-      let group = groups.get(id)
+      const groupState: SidebarRow["state"] = row.state === "review" ? "idle" : row.state
+      let group = groups.get(groupState)
       if (!group) {
-        group = { id, state: row.state, rows: [] }
-        groups.set(id, group)
+        group = { id: groupState, state: groupState, rows: [] }
+        groups.set(groupState, group)
       }
       group.rows.push(row)
     } else if (filter.groupBy === "time") {

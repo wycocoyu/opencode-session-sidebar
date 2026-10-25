@@ -55,18 +55,21 @@ describe("buildSessionGroups", () => {
     expect(ids([row("root"), child, archived], { status: "archived" })).toEqual(["archived"])
   })
 
-  test("orders states by urgency, omits empty groups and sorts within each", () => {
+  test("orders states by urgency, merges review rows into idle group, omits empty groups and sorts within each", () => {
     const groups = buildSessionGroups(
-      [row("idle"), row("work", "working"), row("review", "review"), row("old", "input", 2), row("new", "input")],
+      [row("idle", "idle", 1), row("work", "working"), row("review", "review", 0), row("old", "input", 2), row("new", "input")],
       filter,
     )
     expect(groups.map((group) => [group.id, group.state])).toEqual([
       ["input", "input"],
       ["working", "working"],
-      ["review", "review"],
       ["idle", "idle"],
     ])
     expect(groups[0].rows.map((item) => item.session.id)).toEqual(["new", "old"])
+    expect(groups[2].rows.map((item) => [item.session.id, item.state])).toEqual([
+      ["review", "review"],
+      ["idle", "idle"],
+    ])
     expect(buildSessionGroups([], filter)).toEqual([])
   })
 
@@ -74,7 +77,7 @@ describe("buildSessionGroups", () => {
     const boundary = row("boundary", "idle", days)
     const older = row("older", "review", days + 0.001)
     expect(ids([boundary, older, row("input", "input", 100), row("work", "working", 100)], { days })).toEqual(
-      days === 0 ? ["input", "work", "older", "boundary"] : ["input", "work", "boundary"],
+      days === 0 ? ["input", "work", "boundary", "older"] : ["input", "work", "boundary"],
     )
   })
 

@@ -794,8 +794,11 @@ function ServerSessions(props: {
                         when={row().state === "input"}
                         fallback={
                           <>
-                            <Show when={row().state === "review" && props.filter.groupBy !== "state"}>
-                              <span class="size-1.5 shrink-0 rounded-full bg-v2-background-bg-accent" />
+                            <Show when={row().state === "review"}>
+                              <span
+                                data-slot="session-sidebar-unread-dot"
+                                class="size-1.5 shrink-0 rounded-full bg-v2-background-bg-accent"
+                              />
                             </Show>
                             <span class="text-[11px] leading-4 tabular-nums text-v2-text-text-faint">
                               {relativeTime()}

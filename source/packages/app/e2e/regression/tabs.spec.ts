@@ -51,7 +51,9 @@ test("session sidebar groups history and restores the original tab layout", asyn
   const sidebar = page.getByRole("complementary", { name: "Sessions", exact: true })
   await expect(page.locator("[data-titlebar-tab-slot]:visible")).toHaveCount(0)
   await expect(sidebar.getByRole("heading", { name: "Needs input", exact: true })).toBeVisible()
-  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible()
+  await expect(sidebar.getByRole("heading", { name: "Idle", exact: true })).toBeVisible()
+  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toHaveCount(0)
+  await expect(sidebar.locator('[data-slot="session-sidebar-unread-dot"]')).toHaveCount(1)
   await expect(sidebar.getByRole("button", { name: /Tab B session/ })).toBeVisible()
 
   const viewRequest = page.waitForRequest(
@@ -61,7 +63,7 @@ test("session sidebar groups history and restores the original tab layout", asyn
   await sidebar.locator('[data-action="sidebar-filter-menu"]').click()
   await page.getByRole("menuitem", { name: "Mark all as read", exact: true }).click()
   await viewRequest
-  await expect(sidebar.getByRole("heading", { name: "Ready to review", exact: true })).toHaveCount(0)
+  await expect(sidebar.locator('[data-slot="session-sidebar-unread-dot"]')).toHaveCount(0)
   const newer = { ...permission, id: "permission-sidebar-newer" }
   requests.push(newer)
   await workspace.push([
